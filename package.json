@@ -18,6 +18,6 @@
     "wrangler": "^4.24.0"
   },
   "browser": {
-  "@aws-sdk/xml-builder": false
-}
+    "@aws-sdk/xml-builder": false
+  }
 }
