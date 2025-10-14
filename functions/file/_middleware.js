@@ -17,7 +17,7 @@ async function handleCORS(context) {
     });
   }
 
-  return null; // 继续处理其他中间件
+  return await context.next(); // 继续处理其他中间件
 }
 
 export const onRequest = [handleCORS, checkDatabaseConfig];
