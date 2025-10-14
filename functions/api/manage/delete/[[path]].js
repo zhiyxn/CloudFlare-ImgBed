@@ -35,7 +35,7 @@ export async function onRequest(context) {
                 // 处理当前文件夹下的所有文件
                 for (const file of files) {
                     const fileId = file.name;
-                    const cdnUrl = `https://${url.hostname}/file/${fileId}`;
+                    const cdnUrl = `https://${url.hostname}/file/${encodeURIComponent(fileId)}`;
 
                     const success = await deleteFile(env, fileId, cdnUrl, url);
                     if (success) {
@@ -64,13 +64,13 @@ export async function onRequest(context) {
                 success: true,
                 deleted: deletedFiles,
                 failed: failedFiles
-            }));
+            }), { headers: { 'Access-Control-Allow-Origin': '*' } });
 
         } catch (e) {
             return new Response(JSON.stringify({
                 success: false,
                 error: e.message
-            }), { status: 400 });
+            }), { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
         }
     }
 
@@ -79,7 +79,8 @@ export async function onRequest(context) {
         // 解码params.path
         params.path = decodeURIComponent(params.path);
         const fileId = params.path.split(',').join('/');
-        const cdnUrl = `https://${url.hostname}/file/${fileId}`;
+        const encodedFileId = fileId.split('/').map(encodeURIComponent).join('/');
+        const cdnUrl = `https://${url.hostname}/file/${encodedFileId}`;
 
         const success = await deleteFile(env, fileId, cdnUrl, url);
         if (!success) {
@@ -92,12 +93,12 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({
             success: true,
             fileId: fileId
-        }));
+        }), { headers: { 'Access-Control-Allow-Origin': '*' } });
     } catch (e) {
         return new Response(JSON.stringify({
             success: false,
             error: e.message
-        }), { status: 400 });
+        }), { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 }
 

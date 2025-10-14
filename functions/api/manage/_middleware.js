@@ -53,10 +53,9 @@ function UnauthorizedException(reason) {
     statusText: 'Unauthorized',
     headers: {
       'Content-Type': 'text/plain;charset=UTF-8',
-      // Disables caching by default.
       'Cache-Control': 'no-store',
-      // Returns the "Content-Length" header for HTTP HEAD requests.
       'Content-Length': reason.length,
+      'Access-Control-Allow-Origin': '*', // 添加CORS头
     },
   });
 }
@@ -67,10 +66,9 @@ function BadRequestException(reason) {
     statusText: 'Bad Request',
     headers: {
       'Content-Type': 'text/plain;charset=UTF-8',
-      // Disables caching by default.
       'Cache-Control': 'no-store',
-      // Returns the "Content-Length" header for HTTP HEAD requests.
       'Content-Length': reason.length,
+      'Access-Control-Allow-Origin': '*', // 添加CORS头
     },
   });
 }
@@ -100,6 +98,21 @@ function extractRequiredPermission(pathname) {
 }
 
 async function authentication(context) {
+  const { request } = context;
+
+  // 优先处理 OPTIONS 请求（CORS 预检）
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, authCode',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
   // 读取安全配置
   securityConfig = await fetchSecurityConfig(context.env);
   basicUser = securityConfig.auth.admin.adminUsername

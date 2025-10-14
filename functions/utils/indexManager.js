@@ -1112,7 +1112,7 @@ export async function deleteAllOperations(context) {
 
             const originUrl = new URL(request.url);
             const deleteUrl = `${originUrl.protocol}//${originUrl.host}/api/manage/list?action=delete-operations`
-            
+
             await fetch(deleteUrl, {
                 method: 'GET',
                 headers: headers
