@@ -128,10 +128,7 @@ export async function checkDatabaseConfig(context) {
       {
         status: 500,
         headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, GET",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization, authCode",
+          "Content-Type": "application/json"
         }
       }
     );
