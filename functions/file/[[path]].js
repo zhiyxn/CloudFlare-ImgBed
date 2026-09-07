@@ -25,6 +25,7 @@ import {
     validateImageTransformRequest,
     validateImageTransformSource,
 } from './imageTransform.js';
+import { fetchPublicHttpResource, RemoteUrlError, validatePublicHttpUrl } from '../utils/safeRemoteFetch.js';
 
 
 export async function onRequest(context) {  // Contents of context object
@@ -143,13 +144,23 @@ export async function onRequest(context) {  // Contents of context object
 
     /* 外链渠道 */
     if (imgRecord.metadata?.Channel === 'External') {
+        const externalLink = imgRecord.metadata?.ExternalLink;
+        try {
+            validatePublicHttpUrl(externalLink);
+        } catch (error) {
+            if (error instanceof RemoteUrlError) {
+                return new Response(`Error: Invalid external image URL - ${error.message}`, { status: 400 });
+            }
+            throw error;
+        }
+
         if (!context.imageTransform.requested) {
             // 未请求图片处理时维持原有的外链重定向逻辑
-            return Response.redirect(imgRecord.metadata?.ExternalLink, 302);
+            return Response.redirect(externalLink, 302);
         }
 
         try {
-            const response = await fetch(imgRecord.metadata?.ExternalLink);
+            const response = await fetchPublicHttpResource(externalLink);
             if (!response.ok) return response;
 
             const headers = new Headers(response.headers);
@@ -160,6 +171,9 @@ export async function onRequest(context) {  // Contents of context object
                 headers,
             }));
         } catch (error) {
+            if (error instanceof RemoteUrlError) {
+                return new Response(`Error: Invalid external image URL - ${error.message}`, { status: 400 });
+            }
             return new Response(`Error: Failed to fetch external image - ${error.message}`, { status: 500 });
         }
     }

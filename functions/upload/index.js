@@ -13,6 +13,7 @@ import { HuggingFaceAPI } from "../utils/storage/huggingfaceAPI";
 import { WebDAVAPI } from "../utils/storage/webdavAPI";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getDatabase } from '../utils/databaseAdapter.js';
+import { RemoteUrlError, validatePublicHttpUrl } from '../utils/safeRemoteFetch.js';
 
 
 export async function onRequest(context) {  // Contents of context object
@@ -566,6 +567,14 @@ async function uploadFileToExternal(context, fullId, metadata, returnLink) {
     const extUrl = formdata.get('url');
     if (extUrl === null || extUrl === undefined) {
         return createResponse('Error: No url provided', { status: 400 });
+    }
+    try {
+        validatePublicHttpUrl(extUrl);
+    } catch (error) {
+        if (error instanceof RemoteUrlError) {
+            return createResponse(`Error: Invalid external URL - ${error.message}`, { status: 400 });
+        }
+        throw error;
     }
     metadata.ExternalLink = extUrl;
     // 写入KV数据库
