@@ -58,33 +58,23 @@ async function getQuotaStats(context) {
     }
 }
 
-// 重新统计容量（触发索引重建，会重新计算所有容量统计）
+// 重新统计容量。重建放入后台执行，避免大数据集占满单次请求时限。
 async function recalculateQuota(context) {
     try {
-        // 重建索引会自动重新计算所有容量统计
-        const result = await rebuildIndex(context);
-
-        if (!result.success) {
-            return new Response(JSON.stringify({
-                success: false,
-                error: result.error || 'Failed to rebuild index'
-            }), {
-                status: 500,
-                headers: { 'Content-Type': 'application/json', ...corsHeaders }
-            });
-        }
-
-        // 重建完成后，获取最新的统计数据
+        // 先返回当前快照，保持旧客户端所需的字段；新统计会在后台完成后生效。
         const indexMeta = await getIndexMeta(context);
+        context.waitUntil(rebuildIndex(context));
 
         return new Response(JSON.stringify({
             success: true,
-            message: 'Quota recalculated successfully',
+            rebuildScheduled: true,
+            message: 'Quota recalculation scheduled',
             channelStats: indexMeta.channelStats || {},
             totalSizeMB: indexMeta.totalSizeMB || 0,
             totalCount: indexMeta.totalCount || 0,
-            totalUniqueFiles: result.indexedCount
+            lastUpdated: indexMeta.lastUpdated
         }), {
+            status: 202,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
     } catch (error) {
