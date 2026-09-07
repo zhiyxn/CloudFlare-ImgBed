@@ -147,11 +147,11 @@ export async function getSecurityConfig(db, env) {
     const kvAuth = settingsKV.auth || {}
     const auth = {
         user: {
-            authCode: kvAuth.user?.authCode ?? env.AUTH_CODE ?? '',
+            authCode: preferStoredCredential(kvAuth.user?.authCode, env.AUTH_CODE),
         },
         admin: {
-            adminUsername: kvAuth.admin?.adminUsername ?? env.BASIC_USER ?? '',
-            adminPassword: kvAuth.admin?.adminPassword ?? env.BASIC_PASS ?? '',
+            adminUsername: preferStoredCredential(kvAuth.admin?.adminUsername, env.BASIC_USER),
+            adminPassword: preferStoredCredential(kvAuth.admin?.adminPassword, env.BASIC_PASS),
         }
     }
     settings.auth = auth
@@ -199,6 +199,12 @@ export async function getSecurityConfig(db, env) {
     settings.apiTokens = apiTokens
 
     return settings;
+}
+
+function preferStoredCredential(storedValue, environmentValue) {
+    return storedValue === undefined || storedValue === null || storedValue === ''
+        ? (environmentValue ?? '')
+        : storedValue;
 }
 
 function normalizeImageTransformAllowedSizes(value) {
