@@ -98,7 +98,10 @@ export async function authenticate({
     authScope = AUTH_SCOPE.EITHER,
 }) {
     // 读取安全配置
-    const securityConfig = await fetchSecurityConfig(env);
+    // Authentication must fail closed. Falling back to an empty configuration
+    // here would make a transient database/configuration error look like
+    // "authentication is not configured" and grant anonymous access.
+    const securityConfig = await fetchSecurityConfig(env, { throwOnError: true });
     const adminUsername = securityConfig.auth.admin.adminUsername;
     const adminPassword = securityConfig.auth.admin.adminPassword;
     const userAuthCode = securityConfig.auth.user.authCode;
