@@ -2,8 +2,14 @@
  * 公开文件列表 API
  * 负责按公开浏览配置返回可访问文件和目录列表，并维护列表缓存
  */
-import { fetchOthersConfig } from "../../utils/sysConfig";
+import { fetchOthersConfig } from "../../utils/sysConfig.js";
 import { readIndex } from '../../utils/indexManager.js';
+import {
+    getAllowedChildDirectories,
+    getPublicDirectoryAccess,
+    normalizeAllowedDirectories,
+    normalizePublicDirectory,
+} from './directoryAccess.js';
 
 // CORS 跨域响应头
 const corsHeaders = {
@@ -12,44 +18,6 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
 };
-
-/**
- * 检查目录是否在允许列表中
- * @param {string} dir - 请求的目录
- * @param {string[]} allowedDirs - 允许的目录列表
- * @returns {boolean}
- */
-function isAllowedDirectory(dir, allowedDirs) {
-    // 如果允许目录列表为空，视为允许所有目录（包括根目录）
-    if (!allowedDirs || allowedDirs.length === 0) {
-        return true;
-    }
-
-    // 标准化目录格式
-    const normalizedDir = dir.replace(/^\/+/, '').replace(/\/+$/, '');
-
-    for (const allowed of allowedDirs) {
-        const normalizedAllowed = allowed.trim().replace(/^\/+/, '').replace(/\/+$/, '');
-
-        // "*" 或空字符串表示允许所有目录（包括根目录）
-        if (normalizedAllowed === '*' || normalizedAllowed === '') {
-            return true;
-        }
-
-        // 根目录访问：如果请求的是空目录，需要精确匹配
-        if (normalizedDir === '' && normalizedAllowed !== '') {
-            continue; // 根目录不匹配具体目录名
-        }
-
-        // 精确匹配或子目录匹配
-        if (normalizedDir === normalizedAllowed ||
-            normalizedDir.startsWith(normalizedAllowed + '/')) {
-            return true;
-        }
-    }
-
-    return false;
-}
 
 /**
  * 获取公开浏览文件列表（带缓存）
@@ -149,10 +117,11 @@ export async function onRequest(context) {
 
         // 解析允许的目录
         const allowedDirStr = publicBrowse.allowedDir || '';
-        let allowedDirs = allowedDirStr.split(',').map(d => d.trim()).filter(d => d);
+        const allowedDirs = normalizeAllowedDirectories(allowedDirStr.split(','));
 
         // 获取请求的目录和搜索参数
-        let dir = url.searchParams.get('dir') || '';
+        const requestedDir = url.searchParams.get('dir') || '';
+        let dir = normalizePublicDirectory(requestedDir);
         let search = url.searchParams.get('search') || '';
         if (search) {
             search = decodeURIComponent(search).trim().toLowerCase();
@@ -162,23 +131,30 @@ export async function onRequest(context) {
         const recursive = url.searchParams.get('recursive') === 'true';
         const fileType = url.searchParams.get('type') || ''; // image, video, audio, other
 
-        // 检查目录权限
-        if (!isAllowedDirectory(dir, allowedDirs)) {
+        // 检查目录权限。允许访问受限目录的祖先，但只返回通向允许目录的虚拟入口。
+        const directoryAccess = dir === null ? 'denied' : getPublicDirectoryAccess(dir, allowedDirs);
+        if (directoryAccess === 'denied') {
             return new Response(JSON.stringify({ error: 'Directory not allowed' }), {
                 status: 403,
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
 
+        if (directoryAccess === 'navigation') {
+            return new Response(JSON.stringify({
+                files: [],
+                directories: getAllowedChildDirectories(dir, allowedDirs),
+                totalCount: 0,
+                returnedCount: 0,
+                allowedDirs,
+                fromCache: false,
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
         // 处理目录格式
         if (dir) {
-            // 路径安全处理：防止路径穿越
-            dir = dir.replace(/\.\./g, '_').replace(/\\/g, '/').replace(/\/{2,}/g, '/');
-        }
-        if (dir.startsWith('/')) {
-            dir = dir.substring(1);
-        }
-        if (dir && !dir.endsWith('/')) {
             dir += '/';
         }
 
@@ -191,7 +167,7 @@ export async function onRequest(context) {
 
         // 过滤子目录，只返回允许的目录
         const filteredDirectories = cachedData.directories.filter(subDir => {
-            return isAllowedDirectory(subDir, allowedDirs);
+            return getPublicDirectoryAccess(subDir, allowedDirs) !== 'denied';
         });
 
         // 文件类型过滤辅助函数
